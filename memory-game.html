@@ -2,9 +2,8 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Juego de Memoria React</title>
+  <title>Juego de Memoria usando React</title>
 
-  <!-- React, ReactDOM y Babel -->
   <script src="https://unpkg.com/react@17/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -14,28 +13,43 @@
       --cream: #F5FDC6;
       --peach: #F5C396;
       --ecru: #D0B17A;
-      --ecru-dark: #A89F68;
       --moss: #41521F;
     }
     body {
-      margin: 0;
-      padding: 20px;
-      background: var(--cream);
-      font-family: Arial, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      margin:0; padding:20px;
+      background:var(--cream);
+      font-family:Arial,sans-serif;
+      display:flex; flex-direction:column;
+      align-items:center;
+    }
+    .counter {
+      font-size:1.2rem; margin-bottom:10px;
+      color:var(--moss);
+    }
+    .logrado, .fallo {
+      position:fixed; top:20%; left:50%;
+      transform:translateX(-50%);
+      background:var(--moss); color:white;
+      padding:10px 20px; border-radius:8px;
+      font-size:1.5rem; z-index:5;
+    }
+    .game-over {
+      position:fixed; top:0; left:0;
+      width:100%; height:100%;
+      background:rgba(0,0,0,0.7);
+      display:flex; align-items:center;
+      justify-content:center;
+      color:white; font-size:2rem;
+      z-index:10;
     }
     .grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 10px;
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:10px;
     }
-
     .card {
-      width: 100px;
-      height: 100px;
-      perspective: 1000px;
+      width:100px; height:100px;
+      perspective:1000px;
     }
     .card-inner {
       position: relative;
@@ -43,28 +57,33 @@
       height: 100%;
       transition: transform 0.6s;
       transform-style: preserve-3d;
+      transform: rotateY(180deg); /* Abiertas */
     }
-    .card.flipped .card-inner {
-      transform: rotateY(180deg);
+    .card:not(.flipped) .card-inner {
+      transform: rotateY(0deg); /* Tapadas */
     }
     .card-face {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      backface-visibility: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 2rem;
-      border-radius: 8px;
+      position:absolute; width:100%; height:100%;
+      backface-visibility:hidden;
+      display:flex; align-items:center;
+      justify-content:center;
+      font-size:2rem; border-radius:8px;
     }
-    .card-front {
-      background: var(--peach);
-      color: var(--moss);
+    .card-face.back {
+      background:var(--ecru);
     }
-    .card-back {
-      background: var(--ecru);
+    .card-face.front {
+      background:var(--peach); color:var(--moss);
       transform: rotateY(180deg);
+    }
+    footer {
+      margin-top:20px; font-size:0.9rem;
+    }
+    footer a {
+      color:var(--moss); text-decoration:none;
+    }
+    footer a:hover {
+      text-decoration:underline;
     }
   </style>
 </head>
@@ -72,13 +91,148 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    function App() {
-      return <div>¡Juego de Memoria!</div>;
+    const { useState, useEffect } = React;
+
+    function shuffle(arr) {
+      const a = arr.slice();
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
     }
+
+    function Card({ card, onClick }) {
+      return (
+        <div
+          className={`card ${card.flipped ? 'flipped' : ''}`}
+          onClick={() => onClick(card.index)}
+        >
+          <div className="card-inner">
+            <div className="card-face back"></div>
+            <div className="card-face front">{card.content}</div>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [cards, setCards] = useState([]);
+      const [first, setFirst] = useState(null);
+      const [second, setSecond] = useState(null);
+      const [moves, setMoves] = useState(0);
+      const [matchedCount, setMatchedCount] = useState(0);
+      const [gameOver, setGameOver] = useState(false);
+      const [message, setMessage] = useState('');
+
+      useEffect(() => {
+        const symbols = ['😺','😹','😻','😼','😽','🙀','😿','😾'];
+        const deck = shuffle([...symbols, ...symbols]).map((c,i) => ({
+          content: c,
+          index: i,
+          flipped: true, // Tapadas
+          matched: false
+        }));
+        setCards(deck);
+
+        const timer = setTimeout(() => {
+          setCards(prev =>
+            prev.map(c => ({
+              ...c,
+              flipped: false // Mostrar todas a los 3 segundos
+            }))
+          );
+        }, 3000);
+
+        return () => clearTimeout(timer);
+      }, []);
+
+      function handleClick(idx) {
+        const card = cards[idx];
+        if (card.flipped || card.matched) return;
+
+        setCards(prev =>
+          prev.map(c =>
+            c.index === idx ? { ...c, flipped: true } : c
+          )
+        );
+
+        if (first === null) {
+          setFirst(idx);
+        } else if (second === null) {
+          setSecond(idx);
+          setMoves(m => m + 1);
+        }
+      }
+
+      useEffect(() => {
+        if (first !== null && second !== null) {
+          const a = cards[first];
+          const b = cards[second];
+          if (a.content === b.content) {
+            setCards(prev =>
+              prev.map(c =>
+                c.index === first || c.index === second
+                  ? { ...c, matched: true }
+                  : c
+              )
+            );
+            setMatchedCount(n => n + 1);
+            setMessage(' ¡Logrado!');
+            setTimeout(() => setMessage(''), 1000);
+          } else {
+            setMessage('Intenta de nuevo');
+            setTimeout(() => {
+              setCards(prev =>
+                prev.map(c =>
+                  c.index === first || c.index === second
+                    ? { ...c, flipped: false }
+                    : c
+                )
+              );
+              setMessage('');
+            }, 1000);
+          }
+          setFirst(null);
+          setSecond(null);
+        }
+      }, [second]);
+
+      useEffect(() => {
+        if (matchedCount === cards.length/2 && cards.length > 0) {
+          setGameOver(true);
+        }
+      }, [matchedCount, cards]);
+
+      return (
+        <div>
+          {message && <div className="logrado">{message}</div>}
+          <div className="counter">Movimientos: {moves}</div>
+          <div className="grid">
+            {cards.map(card => (
+              <Card key={card.index} card={card} onClick={handleClick} />
+            ))}
+          </div>
+          {gameOver && (
+            <div className="game-over">
+               Juego terminado !!
+            </div>
+          )}
+        </div>
+      );
+    }
+
     ReactDOM.render(<App />, document.getElementById('root'));
   </script>
-</head>
-<body>
-  <div id="root"></div>
+
+  <footer>
+    <a href="https://github.com/CindyGualim/Lab06-React" target="_blank">
+      Ver código en Git
+    </a>
+    <br/>
+  <a href="http://cindynosaurio.online/React-lab06/memory-game.html" target="_blank">
+    Ver juego
+  </a>
+  </footer>
 </body>
 </html>
